@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import type { RequestMessage } from '../shared/protocol';
 import type { LatticePanel } from './webview-provider';
 import type { AIService } from './services/ai-service';
@@ -35,24 +36,20 @@ export function handleMessage(
       break;
 
     case 'saveProject':
-      // TODO: Phase 8 — persist to .lattice/ directory
+      // TODO: Phase 9 — persist to .lattice/ directory
       break;
 
     case 'loadProject':
-      // TODO: Phase 8 — load from .lattice/ directory
+      // TODO: Phase 9 — load from .lattice/ directory
       panel.postMessage({ type: 'projectLoaded', payload: null });
       break;
 
     case 'writeFile':
-      // TODO: Phase 8 — write file with confirmation
+      handleWriteFile(message.payload, panel);
       break;
 
     case 'selectOutputPath':
-      // TODO: Phase 8 — open file dialog
-      panel.postMessage({
-        type: 'pathSelected',
-        payload: { path: null },
-      });
+      handleSelectOutputPath(message.payload, panel);
       break;
 
     case 'getAIConfig':
@@ -150,6 +147,105 @@ async function handleSetAIConfig(
             ? error.message
             : 'Failed to save AI configuration',
       },
+    });
+  }
+}
+
+// --- File Operations ---
+
+async function handleWriteFile(
+  payload: { path: string; content: string; confirm: boolean },
+  panel: LatticePanel
+) {
+  try {
+    const fileUri = vscode.Uri.file(payload.path);
+
+    // Check if file already exists when confirm is requested
+    if (payload.confirm) {
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+        // File exists — ask user to confirm overwrite
+        const overwrite = await vscode.window.showWarningMessage(
+          `File already exists: ${vscode.workspace.asRelativePath(fileUri)}. Overwrite?`,
+          { modal: true },
+          'Overwrite'
+        );
+        if (overwrite !== 'Overwrite') {
+          panel.postMessage({ type: 'fileWriteCancelled' });
+          return;
+        }
+      } catch {
+        // File doesn't exist — no confirmation needed, proceed
+      }
+    }
+
+    // Create parent directories if they don't exist
+    const parentDir = vscode.Uri.joinPath(fileUri, '..');
+    try {
+      await vscode.workspace.fs.stat(parentDir);
+    } catch {
+      await vscode.workspace.fs.createDirectory(parentDir);
+    }
+
+    // Write the file
+    const encoder = new TextEncoder();
+    await vscode.workspace.fs.writeFile(fileUri, encoder.encode(payload.content));
+
+    // Send success response
+    panel.postMessage({
+      type: 'fileSaved',
+      payload: { path: payload.path },
+    });
+
+    // Open the file in the editor
+    const doc = await vscode.workspace.openTextDocument(fileUri);
+    await vscode.window.showTextDocument(doc, {
+      viewColumn: vscode.ViewColumn.One,
+      preserveFocus: true,
+    });
+  } catch (error) {
+    console.error('[Lattice] Failed to write file:', error);
+    panel.postMessage({
+      type: 'error',
+      payload: {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to write file',
+      },
+    });
+  }
+}
+
+async function handleSelectOutputPath(
+  payload: { suggestedName: string },
+  panel: LatticePanel
+) {
+  try {
+    // Determine the default URI based on workspace root
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    const defaultUri = workspaceFolders?.[0]
+      ? vscode.Uri.joinPath(workspaceFolders[0].uri, payload.suggestedName)
+      : undefined;
+
+    const result = await vscode.window.showSaveDialog({
+      defaultUri,
+      filters: {
+        'Component Files': ['tsx', 'jsx', 'ts', 'js', 'vue', 'svelte'],
+        'All Files': ['*'],
+      },
+      title: 'Save Component File',
+    });
+
+    panel.postMessage({
+      type: 'pathSelected',
+      payload: { path: result?.fsPath ?? null },
+    });
+  } catch (error) {
+    console.error('[Lattice] Failed to open save dialog:', error);
+    panel.postMessage({
+      type: 'pathSelected',
+      payload: { path: null },
     });
   }
 }
