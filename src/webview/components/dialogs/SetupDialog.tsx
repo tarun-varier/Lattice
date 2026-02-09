@@ -1,13 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Plus, Trash2 } from 'lucide-react';
+import { X, Plus, Trash2, Eye, EyeOff } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useContextStore } from '../../stores/context-store';
 import { useUiStore } from '../../stores/ui-store';
+import { getHostBridge } from '../../lib/host-bridge';
 import type {
   ProjectContext,
   DesignTokens,
   Framework,
   UILibrary,
+  AIConfig,
 } from '@shared/types';
 
 const FRAMEWORKS: { value: Framework; label: string }[] = [
@@ -43,6 +45,33 @@ const SPACINGS: { value: DesignTokens['spacing']; label: string }[] = [
   { value: 'spacious', label: 'Spacious' },
 ];
 
+const PROVIDERS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic' },
+];
+
+const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
+  openai: [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+    { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+    { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+  ],
+  anthropic: [
+    { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+  ],
+};
+
+const DEFAULT_AI_CONFIG: AIConfig = {
+  provider: 'openai',
+  model: 'gpt-4o',
+  apiKey: null,
+  temperature: 0.7,
+  maxTokens: 4096,
+};
+
 export function SetupDialog() {
   const storeContext = useContextStore((s) => s.context);
   const updateContext = useContextStore((s) => s.updateContext);
@@ -60,9 +89,25 @@ export function SetupDialog() {
   // Local draft — synced from store when dialog opens
   const [draft, setDraft] = useState<ProjectContext>(storeContext);
 
+  // AI config local draft
+  const [aiDraft, setAiDraft] = useState<AIConfig>(DEFAULT_AI_CONFIG);
+  const [showApiKey, setShowApiKey] = useState(false);
+
   useEffect(() => {
     if (isOpen) {
       setDraft(storeContext);
+      setShowApiKey(false);
+
+      // Request current AI config from extension host
+      const bridge = getHostBridge();
+      const unsub = bridge.on('aiConfig', (msg) => {
+        if (msg.type === 'aiConfig') {
+          setAiDraft(msg.payload);
+        }
+      });
+      bridge.send({ type: 'getAIConfig' });
+
+      return () => { unsub(); };
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -79,8 +124,13 @@ export function SetupDialog() {
     updateContext(draft);
     updateDesignTokens(draft.designTokens);
     setSetupComplete(true);
+
+    // Save AI config to extension host (API key goes to SecretStorage)
+    const bridge = getHostBridge();
+    bridge.send({ type: 'setAIConfig', payload: aiDraft });
+
     handleClose();
-  }, [draft, updateContext, updateDesignTokens, setSetupComplete, handleClose]);
+  }, [draft, aiDraft, updateContext, updateDesignTokens, setSetupComplete, handleClose]);
 
   // --- Field helpers ---
 
@@ -385,6 +435,120 @@ export function SetupDialog() {
                 placeholder="e.g. We use a custom icon set, all components should be server-compatible..."
               />
             </Field>
+          </Section>
+
+          {/* ── Section: AI Configuration ── */}
+          <Section title="AI Configuration">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Provider">
+                <select
+                  className={inputClass}
+                  value={aiDraft.provider}
+                  onChange={(e) => {
+                    const provider = e.target.value;
+                    const models = PROVIDER_MODELS[provider] ?? [];
+                    setAiDraft((prev) => ({
+                      ...prev,
+                      provider,
+                      model: models[0]?.value ?? prev.model,
+                    }));
+                  }}
+                >
+                  {PROVIDERS.map((p) => (
+                    <option key={p.value} value={p.value}>
+                      {p.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Model">
+                <select
+                  className={inputClass}
+                  value={aiDraft.model}
+                  onChange={(e) =>
+                    setAiDraft((prev) => ({ ...prev, model: e.target.value }))
+                  }
+                >
+                  {(PROVIDER_MODELS[aiDraft.provider] ?? []).map((m) => (
+                    <option key={m.value} value={m.value}>
+                      {m.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+
+            <Field label="API Key" hint={`Your ${PROVIDERS.find((p) => p.value === aiDraft.provider)?.label ?? ''} API key — stored securely in VSCode`}>
+              <div className="flex items-center gap-1.5">
+                <input
+                  className={cn(inputClass, 'flex-1 font-mono')}
+                  type={showApiKey ? 'text' : 'password'}
+                  value={aiDraft.apiKey ?? ''}
+                  onChange={(e) =>
+                    setAiDraft((prev) => ({
+                      ...prev,
+                      apiKey: e.target.value || null,
+                    }))
+                  }
+                  placeholder={`sk-... or key-...`}
+                />
+                <button
+                  className="p-1 text-muted-foreground hover:text-foreground rounded"
+                  onClick={() => setShowApiKey((v) => !v)}
+                  title={showApiKey ? 'Hide API key' : 'Show API key'}
+                  type="button"
+                >
+                  {showApiKey ? (
+                    <EyeOff className="w-3.5 h-3.5" />
+                  ) : (
+                    <Eye className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Temperature" hint="0 = deterministic, 1 = creative">
+                <input
+                  className={inputClass}
+                  type="number"
+                  min="0"
+                  max="2"
+                  step="0.1"
+                  value={aiDraft.temperature}
+                  onChange={(e) =>
+                    setAiDraft((prev) => ({
+                      ...prev,
+                      temperature: parseFloat(e.target.value) || 0,
+                    }))
+                  }
+                />
+              </Field>
+
+              <Field label="Max Tokens">
+                <input
+                  className={inputClass}
+                  type="number"
+                  min="256"
+                  max="128000"
+                  step="256"
+                  value={aiDraft.maxTokens}
+                  onChange={(e) =>
+                    setAiDraft((prev) => ({
+                      ...prev,
+                      maxTokens: parseInt(e.target.value) || 4096,
+                    }))
+                  }
+                />
+              </Field>
+            </div>
+
+            {!aiDraft.apiKey && (
+              <p className="text-[10px] text-amber-400/80 mt-1">
+                An API key is required for AI generation. You can get one from your provider's dashboard.
+              </p>
+            )}
           </Section>
         </div>
 

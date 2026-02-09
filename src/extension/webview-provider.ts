@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { handleMessage } from './message-handler';
+import { AIService } from './services/ai-service';
 import type { ResponseMessage } from '../shared/protocol';
 
 export class LatticePanel {
@@ -8,6 +9,7 @@ export class LatticePanel {
 
   private readonly _panel: vscode.WebviewPanel;
   private readonly _context: vscode.ExtensionContext;
+  private readonly _aiService: AIService;
   private _disposables: vscode.Disposable[] = [];
 
   public static createOrShow(context: vscode.ExtensionContext) {
@@ -51,13 +53,14 @@ export class LatticePanel {
   ) {
     this._panel = panel;
     this._context = context;
+    this._aiService = new AIService(context);
 
     // Set the webview HTML content
     this._panel.webview.html = this._getHtmlForWebview();
 
     // Handle messages from the webview
     this._panel.webview.onDidReceiveMessage(
-      (message) => handleMessage(message, this),
+      (message) => handleMessage(message, this, this._aiService),
       null,
       this._disposables
     );

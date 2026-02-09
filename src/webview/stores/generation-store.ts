@@ -2,10 +2,25 @@ import { create } from 'zustand';
 import { nanoid } from 'nanoid';
 import type { GenerationResult, GenerationVersion } from '@shared/types';
 
+export interface AssembledPrompt {
+  systemPrompt: string;
+  userPrompt: string;
+  target: 'page' | 'box';
+  targetId: string;
+  targetName: string;
+  timestamp: number;
+}
+
 interface GenerationState {
   results: Record<string, GenerationResult>;
   generating: Record<string, boolean>;
   streamBuffers: Record<string, string>;
+
+  /** Maps requestId → boxId for routing streaming responses */
+  requestBoxMap: Record<string, string>;
+
+  /** The most recently assembled prompt (for display in Output Panel) */
+  lastPrompt: AssembledPrompt | null;
 
   // Actions
   startGeneration: (boxId: string) => void;
@@ -19,6 +34,10 @@ interface GenerationState {
   ) => void;
   failGeneration: (boxId: string) => void;
   revertToVersion: (boxId: string, versionId: string) => void;
+  setLastPrompt: (prompt: AssembledPrompt) => void;
+  mapRequestToBox: (requestId: string, boxId: string) => void;
+  getBoxIdForRequest: (requestId: string) => string | undefined;
+  clearRequest: (requestId: string) => void;
   getResult: (boxId: string) => GenerationResult | undefined;
   isGenerating: (boxId: string) => boolean;
   reset: () => void;
@@ -28,6 +47,8 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   results: {},
   generating: {},
   streamBuffers: {},
+  requestBoxMap: {},
+  lastPrompt: null,
 
   startGeneration: (boxId: string) => {
     set((s) => ({
@@ -118,6 +139,25 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     });
   },
 
+  setLastPrompt: (prompt: AssembledPrompt) => {
+    set({ lastPrompt: prompt });
+  },
+
+  mapRequestToBox: (requestId: string, boxId: string) => {
+    set((s) => ({
+      requestBoxMap: { ...s.requestBoxMap, [requestId]: boxId },
+    }));
+  },
+
+  getBoxIdForRequest: (requestId: string) => get().requestBoxMap[requestId],
+
+  clearRequest: (requestId: string) => {
+    set((s) => {
+      const { [requestId]: _, ...rest } = s.requestBoxMap;
+      return { requestBoxMap: rest };
+    });
+  },
+
   getResult: (boxId: string) => get().results[boxId],
 
   isGenerating: (boxId: string) => !!get().generating[boxId],
@@ -127,5 +167,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       results: {},
       generating: {},
       streamBuffers: {},
+      requestBoxMap: {},
+      lastPrompt: null,
     }),
 }));

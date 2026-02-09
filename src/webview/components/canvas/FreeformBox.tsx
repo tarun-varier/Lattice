@@ -6,11 +6,16 @@ import {
   ArrowRightLeft,
   ArrowUpDown,
   Plus,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useProjectStore } from '../../stores/project-store';
 import { useUiStore } from '../../stores/ui-store';
+import { useContextStore } from '../../stores/context-store';
+import { useGenerationStore } from '../../stores/generation-store';
+import { assembleBoxPrompts } from '../../lib/prompt-engine';
+import { getHostBridge } from '../../lib/host-bridge';
 import type { Box as BoxType } from '@shared/types';
 import { SortableBoxList } from './SortableBoxList';
 import { FreeformResizeHandles } from './FreeformResizeHandles';
@@ -147,6 +152,51 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
     addBox('', box.id);
   };
 
+  const handleGenerateBox = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      const context = useContextStore.getState().context;
+      const allBoxes = useLayoutStore.getState().boxes;
+      const { systemPrompt, userPrompt } = assembleBoxPrompts(box, allBoxes, context);
+
+      useGenerationStore.getState().setLastPrompt({
+        systemPrompt,
+        userPrompt,
+        target: 'box',
+        targetId: box.id,
+        targetName: box.label || 'Untitled',
+        timestamp: Date.now(),
+      });
+
+      // Switch to prompt tab so user can see the result
+      useUiStore.getState().setPreviewTab('prompt');
+
+      // Mark this box as generating
+      useGenerationStore.getState().startGeneration(box.id);
+
+      // Send generation request to extension host
+      const bridge = getHostBridge();
+      const requestId = bridge.nextRequestId();
+
+      // Store the mapping of requestId -> boxId so response listeners
+      // can route chunks to the correct box.
+      useGenerationStore.getState().mapRequestToBox(requestId, box.id);
+
+      bridge.send({
+        type: 'generate',
+        id: requestId,
+        payload: {
+          prompt: userPrompt,
+          systemPrompt,
+          model: '', // will use config default
+          stream: true,
+        },
+      });
+    },
+    [box]
+  );
+
   return (
     <div
       data-box-id={box.id}
@@ -237,6 +287,13 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
             title="Add child box"
           >
             <Plus className="w-3 h-3" />
+          </button>
+          <button
+            className="p-0.5 text-primary/60 hover:text-primary rounded"
+            onClick={handleGenerateBox}
+            title="Generate code for this box"
+          >
+            <Sparkles className="w-3 h-3" />
           </button>
           <button
             className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
