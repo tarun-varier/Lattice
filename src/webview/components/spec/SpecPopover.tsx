@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useLayoutStore } from '../../stores/layout-store';
+import { useProjectStore } from '../../stores/project-store';
 import { useUiStore } from '../../stores/ui-store';
 import type { BoxSpec, InteractionStates } from '@shared/types';
 
@@ -179,7 +180,28 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
           newSpec.refinements.some((r) => r.trim()) ||
           INTERACTION_KEYS.some((k) => newSpec.interactions[k]?.trim());
 
-        updateBoxSpec(selectedBoxId, hasContent ? newSpec : null);
+        const specToSave = hasContent ? newSpec : null;
+        updateBoxSpec(selectedBoxId, specToSave);
+
+        // Propagate to shared component instances if this box is linked
+        if (specToSave) {
+          const box = useLayoutStore.getState().boxes[selectedBoxId];
+          if (box?.sharedComponentId) {
+            const projectState = useProjectStore.getState();
+            const sc = projectState.sharedComponents[box.sharedComponentId];
+            if (sc) {
+              // Update the canonical spec on the shared component
+              projectState.updateSharedComponentSpec(box.sharedComponentId, specToSave);
+
+              // Propagate to all other instance boxes
+              for (const instanceId of sc.instanceIds) {
+                if (instanceId !== selectedBoxId) {
+                  useLayoutStore.getState().updateBoxSpec(instanceId, { ...specToSave });
+                }
+              }
+            }
+          }
+        }
       }, 300);
     },
     [selectedBoxId, updateBoxSpec]

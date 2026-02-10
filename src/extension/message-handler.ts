@@ -36,12 +36,11 @@ export function handleMessage(
       break;
 
     case 'saveProject':
-      // TODO: Phase 9 — persist to .lattice/ directory
+      handleSaveProject(message.payload, panel);
       break;
 
     case 'loadProject':
-      // TODO: Phase 9 — load from .lattice/ directory
-      panel.postMessage({ type: 'projectLoaded', payload: null });
+      handleLoadProject(panel);
       break;
 
     case 'writeFile':
@@ -247,5 +246,81 @@ async function handleSelectOutputPath(
       type: 'pathSelected',
       payload: { path: null },
     });
+  }
+}
+
+// --- Project Persistence ---
+
+function getLatticeDir(): vscode.Uri | null {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) return null;
+  return vscode.Uri.joinPath(workspaceFolders[0].uri, '.lattice');
+}
+
+function getProjectFileUri(): vscode.Uri | null {
+  const dir = getLatticeDir();
+  if (!dir) return null;
+  return vscode.Uri.joinPath(dir, 'project.json');
+}
+
+async function handleSaveProject(
+  project: import('../shared/types').LatticeProject,
+  panel: LatticePanel
+) {
+  try {
+    const fileUri = getProjectFileUri();
+    if (!fileUri) {
+      panel.postMessage({
+        type: 'error',
+        payload: { message: 'No workspace folder open — cannot save project' },
+      });
+      return;
+    }
+
+    // Ensure .lattice directory exists
+    const dir = getLatticeDir()!;
+    try {
+      await vscode.workspace.fs.stat(dir);
+    } catch {
+      await vscode.workspace.fs.createDirectory(dir);
+    }
+
+    const encoder = new TextEncoder();
+    const json = JSON.stringify(project, null, 2);
+    await vscode.workspace.fs.writeFile(fileUri, encoder.encode(json));
+  } catch (error) {
+    console.error('[Lattice] Failed to save project:', error);
+    panel.postMessage({
+      type: 'error',
+      payload: {
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to save project',
+      },
+    });
+  }
+}
+
+async function handleLoadProject(panel: LatticePanel) {
+  try {
+    const fileUri = getProjectFileUri();
+    if (!fileUri) {
+      panel.postMessage({ type: 'projectLoaded', payload: null });
+      return;
+    }
+
+    try {
+      const data = await vscode.workspace.fs.readFile(fileUri);
+      const decoder = new TextDecoder();
+      const project = JSON.parse(decoder.decode(data));
+      panel.postMessage({ type: 'projectLoaded', payload: project });
+    } catch {
+      // File doesn't exist yet — that's fine
+      panel.postMessage({ type: 'projectLoaded', payload: null });
+    }
+  } catch (error) {
+    console.error('[Lattice] Failed to load project:', error);
+    panel.postMessage({ type: 'projectLoaded', payload: null });
   }
 }

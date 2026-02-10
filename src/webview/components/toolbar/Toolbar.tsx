@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Settings, Play, Plus, ChevronDown } from 'lucide-react';
+import { Settings, Play, Plus } from 'lucide-react';
 import { useProjectStore } from '../../stores/project-store';
 import { useUiStore } from '../../stores/ui-store';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -7,10 +7,14 @@ import { useContextStore } from '../../stores/context-store';
 import { useGenerationStore } from '../../stores/generation-store';
 import { assemblePagePrompts } from '../../lib/prompt-engine';
 import { getHostBridge } from '../../lib/host-bridge';
+import { PageMenu } from './PageMenu';
+import { SharedComponentsList } from './SharedComponentsList';
 
 export function Toolbar() {
   const pages = useProjectStore((s) => s.pages);
+  const addPage = useProjectStore((s) => s.addPage);
   const activePageId = useUiStore((s) => s.activePageId);
+  const setActivePageId = useUiStore((s) => s.setActivePageId);
   const setPreviewTab = useUiStore((s) => s.setPreviewTab);
   const toggleSettings = useUiStore((s) => s.toggleSettings);
   const activePage = pages.find((p) => p.id === activePageId);
@@ -26,13 +30,21 @@ export function Toolbar() {
     (s) => activePage?.boxIds.some((id) => s.generating[id]) ?? false
   );
 
+  const handleAddPage = useCallback(() => {
+    const name = `Page ${pages.length + 1}`;
+    const newId = addPage(name);
+    setActivePageId(newId);
+  }, [pages.length, addPage, setActivePageId]);
+
   const handleGeneratePage = useCallback(() => {
     if (!activePage) return;
 
+    const sharedComponents = useProjectStore.getState().sharedComponents;
     const { systemPrompt, userPrompt } = assemblePagePrompts(
       activePage,
       boxes,
-      context
+      context,
+      sharedComponents
     );
 
     // Store the assembled prompt for display in Output Panel
@@ -85,16 +97,22 @@ export function Toolbar() {
 
         <div className="h-4 w-px bg-border" />
 
-        {/* Page selector (placeholder — will become a proper dropdown) */}
-        <button className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors">
-          <span>{activePage?.name ?? 'Home'}</span>
-          <ChevronDown className="w-3 h-3" />
-        </button>
+        {/* Page selector dropdown */}
+        <PageMenu />
 
-        <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+        <button
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          onClick={handleAddPage}
+          title="Add new page"
+        >
           <Plus className="w-3 h-3" />
           <span>Page</span>
         </button>
+
+        <div className="h-4 w-px bg-border" />
+
+        {/* Shared components dropdown (only visible when components exist) */}
+        <SharedComponentsList />
       </div>
 
       {/* Right: Actions */}

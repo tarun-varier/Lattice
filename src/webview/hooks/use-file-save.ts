@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { getHostBridge } from '../lib/host-bridge';
+import { notify } from '../stores/notification-store';
 import type { ResponseMessage } from '@shared/protocol';
 
 export type FileSaveStatus = 'idle' | 'saving' | 'saved' | 'cancelled' | 'error';
@@ -38,6 +39,7 @@ export function useFileSave(): UseFileSaveReturn {
       if (msg.type !== 'fileSaved') return;
       setStatus('saved');
       setSavedPath(msg.payload.path);
+      notify.success(`File saved: ${msg.payload.path}`);
       // Auto-reset after 3 seconds
       setTimeout(() => {
         setStatus('idle');
@@ -66,6 +68,7 @@ export function useFileSave(): UseFileSaveReturn {
       if (status === 'saving') {
         setStatus('error');
         setErrorMessage(msg.payload.message);
+        notify.error(`File save failed: ${msg.payload.message}`);
         setTimeout(() => {
           setStatus('idle');
           setErrorMessage(null);

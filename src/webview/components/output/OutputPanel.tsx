@@ -24,6 +24,7 @@ import { useContextStore } from '../../stores/context-store';
 import { useShiki } from '../../hooks/use-shiki';
 import { useFileSave } from '../../hooks/use-file-save';
 import { suggestFilePath } from '../../lib/file-utils';
+import { notify } from '../../stores/notification-store';
 
 export function OutputPanel() {
   const activeTab = useUiStore((s) => s.previewTab);
@@ -475,7 +476,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } catch {
-        console.error('[Lattice] Failed to copy to clipboard');
+        notify.error('Failed to copy to clipboard');
       }
     }
   }, [text]);

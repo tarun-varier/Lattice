@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { HighlighterGeneric, BundledLanguage, BundledTheme } from 'shiki/bundle/web';
+import { notify } from '../stores/notification-store';
 
 type Highlighter = HighlighterGeneric<BundledLanguage, BundledTheme>;
 
@@ -48,7 +49,7 @@ export function useShiki() {
           setIsLoading(false);
         }
       } catch (err) {
-        console.error('[Lattice] Failed to initialize Shiki:', err);
+        notify.warning('Syntax highlighting failed to load');
         if (!cancelled) {
           setIsLoading(false);
         }

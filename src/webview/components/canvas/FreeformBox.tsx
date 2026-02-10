@@ -7,6 +7,8 @@ import {
   ArrowUpDown,
   Plus,
   Sparkles,
+  Link,
+  Unlink,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useLayoutStore } from '../../stores/layout-store';
@@ -42,6 +44,14 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
   const boxes = useLayoutStore((s) => s.boxes);
   const addBoxToPage = useProjectStore((s) => s.addBoxToPage);
   const removeBoxFromPage = useProjectStore((s) => s.removeBoxFromPage);
+  const createSharedComponentFromBox = useProjectStore((s) => s.createSharedComponentFromBox);
+  const removeInstanceFromSharedComponent = useProjectStore((s) => s.removeInstanceFromSharedComponent);
+  const sharedComponents = useProjectStore((s) => s.sharedComponents);
+
+  const isSharedInstance = !!box.sharedComponentId;
+  const sharedComponent = box.sharedComponentId
+    ? sharedComponents[box.sharedComponentId]
+    : null;
 
   const isSelected = selectedBoxId === box.id;
   const hasChildren = box.childIds.length > 0;
@@ -129,6 +139,23 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSelected) selectBox(null);
+
+    // Clean up shared component instance reference for this box and any descendants
+    const allBoxes = useLayoutStore.getState().boxes;
+    const collectIds = (id: string): string[] => {
+      const b = allBoxes[id];
+      if (!b) return [];
+      return [id, ...b.childIds.flatMap(collectIds)];
+    };
+    const idsToRemove = collectIds(box.id);
+    const projectState = useProjectStore.getState();
+    for (const id of idsToRemove) {
+      const b = allBoxes[id];
+      if (b?.sharedComponentId) {
+        projectState.removeInstanceFromSharedComponent(b.sharedComponentId, id);
+      }
+    }
+
     removeBoxFromPage(activePageId, box.id);
     removeBox(box.id);
   };
@@ -158,7 +185,8 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
 
       const context = useContextStore.getState().context;
       const allBoxes = useLayoutStore.getState().boxes;
-      const { systemPrompt, userPrompt } = assembleBoxPrompts(box, allBoxes, context);
+      const sharedComps = useProjectStore.getState().sharedComponents;
+      const { systemPrompt, userPrompt } = assembleBoxPrompts(box, allBoxes, context, sharedComps);
 
       useGenerationStore.getState().setLastPrompt({
         systemPrompt,
@@ -195,6 +223,47 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
       });
     },
     [box]
+  );
+
+  const handleExtractSharedComponent = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!box.spec) return; // Need a spec to create a shared component
+
+      const name = box.label || 'Untitled Component';
+
+      // Get latest generated code for this box if available
+      const genResult = useGenerationStore.getState().results[box.id];
+      const latestCode = genResult?.current?.code;
+
+      // Create the shared component and get its ID
+      const componentId = createSharedComponentFromBox(
+        name,
+        box.spec,
+        box.id,
+        latestCode
+      );
+
+      // Set the sharedComponentId on this box
+      updateBox(box.id, { sharedComponentId: componentId });
+    },
+    [box.id, box.spec, box.label, createSharedComponentFromBox, updateBox]
+  );
+
+  const handleUnlinkSharedComponent = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!box.sharedComponentId) return;
+
+      // Remove this box from the shared component's instance list
+      removeInstanceFromSharedComponent(box.sharedComponentId, box.id);
+
+      // Clear the sharedComponentId on this box
+      updateBox(box.id, { sharedComponentId: undefined });
+    },
+    [box.id, box.sharedComponentId, removeInstanceFromSharedComponent, updateBox]
   );
 
   return (
@@ -255,6 +324,13 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
           </span>
         )}
 
+        {/* Shared component indicator */}
+        {isSharedInstance && sharedComponent && (
+          <span className="text-[10px] text-primary/70 font-medium flex items-center gap-0.5" title={`Shared: ${sharedComponent.name}`}>
+            <Link className="w-2.5 h-2.5" />
+          </span>
+        )}
+
         {/* Direction indicator */}
         {hasChildren && (
           <span className="text-[10px] text-muted-foreground/50 font-mono">
@@ -295,6 +371,26 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
           >
             <Sparkles className="w-3 h-3" />
           </button>
+          {/* Shared component: extract or unlink */}
+          {isSharedInstance ? (
+            <button
+              className="p-0.5 text-primary/60 hover:text-muted-foreground rounded"
+              onClick={handleUnlinkSharedComponent}
+              title="Unlink from shared component"
+            >
+              <Unlink className="w-3 h-3" />
+            </button>
+          ) : (
+            box.spec && (
+              <button
+                className="p-0.5 text-muted-foreground/60 hover:text-primary rounded"
+                onClick={handleExtractSharedComponent}
+                title="Extract as shared component"
+              >
+                <Link className="w-3 h-3" />
+              </button>
+            )
+          )}
           <button
             className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
             onClick={handleDuplicate}

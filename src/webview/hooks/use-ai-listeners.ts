@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { getHostBridge } from '../lib/host-bridge';
 import { useGenerationStore } from '../stores/generation-store';
+import { useLayoutStore } from '../stores/layout-store';
+import { useProjectStore } from '../stores/project-store';
 import { useUiStore } from '../stores/ui-store';
+import { notify } from '../stores/notification-store';
 import type { ResponseMessage } from '@shared/protocol';
 
 /**
@@ -51,9 +54,17 @@ export function useAIListeners() {
         // Switch to Code tab to show the result
         uiStore.getState().setPreviewTab('code');
 
-        // If this was a page-level generation, mark all other
-        // generating boxes as complete too (they share the same output)
-        // since page generation produces one combined output
+        // If this box is an instance of a shared component,
+        // store the latest generated code on the shared component
+        const box = useLayoutStore.getState().boxes[boxId];
+        if (box?.sharedComponentId) {
+          useProjectStore.getState().updateSharedComponent(
+            box.sharedComponentId,
+            { latestCode: code }
+          );
+        }
+
+        notify.success('Code generation complete');
       }
     });
 
@@ -67,9 +78,7 @@ export function useAIListeners() {
         state.clearRequest(msg.id);
       }
 
-      // Show error to user via console for now
-      // TODO: Add a toast/notification system
-      console.error('[Lattice] Generation failed:', msg.payload.message);
+      notify.error(`Generation failed: ${msg.payload.message}`);
     });
 
     return () => {

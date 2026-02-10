@@ -3,7 +3,7 @@
 // Pure functions that assemble AI prompts from box trees + project context.
 // ============================================================
 
-import type { Box, BoxSpec, Page, ProjectContext, DesignTokens } from '@shared/types';
+import type { Box, BoxSpec, Page, ProjectContext, DesignTokens, SharedComponent } from '@shared/types';
 
 // ---- Public API ----
 
@@ -60,7 +60,8 @@ export function buildSystemPrompt(context: ProjectContext): string {
  */
 export function buildPagePrompt(
   page: Page,
-  allBoxes: Record<string, Box>
+  allBoxes: Record<string, Box>,
+  sharedComponents?: Record<string, SharedComponent>
 ): string {
   const sections: string[] = [];
 
@@ -78,10 +79,16 @@ export function buildPagePrompt(
     return sections.join('\n\n');
   }
 
+  // Collect shared components referenced by boxes on this page
+  const referencedShared = collectReferencedSharedComponents(topLevelBoxes, allBoxes, sharedComponents);
+  if (referencedShared.length > 0) {
+    sections.push(sharedComponentsSection(referencedShared));
+  }
+
   sections.push(`## Layout\n\nThe page contains ${topLevelBoxes.length} top-level section(s), positioned on a freeform canvas:`);
 
   for (const box of topLevelBoxes) {
-    sections.push(describeBoxTree(box, allBoxes, 0));
+    sections.push(describeBoxTree(box, allBoxes, 0, sharedComponents));
   }
 
   sections.push('## Instructions\n\n' +
@@ -90,7 +97,10 @@ export function buildPagePrompt(
     'Use the spatial positions (x, y, width, height) as hints for relative sizing and ordering, ' +
     'but render them using standard CSS layout (flexbox/grid), not absolute positioning. ' +
     'Sections positioned higher (smaller y) should appear first. ' +
-    'Sections side by side (similar y, different x) should be in a row.');
+    'Sections side by side (similar y, different x) should be in a row.' +
+    (referencedShared.length > 0
+      ? ' For shared components, reuse their existing implementation where available.'
+      : ''));
 
   return sections.join('\n\n');
 }
@@ -100,7 +110,8 @@ export function buildPagePrompt(
  */
 export function buildBoxPrompt(
   box: Box,
-  allBoxes: Record<string, Box>
+  allBoxes: Record<string, Box>,
+  sharedComponents?: Record<string, SharedComponent>
 ): string {
   const sections: string[] = [];
 
@@ -108,7 +119,16 @@ export function buildBoxPrompt(
   sections.push(`# Component: ${componentName}`);
   sections.push('Generate the component code for this UI section based on the following specification.');
 
-  sections.push(describeBoxTree(box, allBoxes, 0));
+  // If this box is an instance of a shared component, note that
+  if (box.sharedComponentId && sharedComponents?.[box.sharedComponentId]) {
+    const sc = sharedComponents[box.sharedComponentId];
+    sections.push(`This is an instance of the shared component "${sc.name}".`);
+    if (sc.latestCode) {
+      sections.push('## Existing Implementation\n\nThe shared component already has a reference implementation:\n\n```\n' + sc.latestCode + '\n```\n\nYou may use this as a starting point or regenerate from scratch based on the spec below.');
+    }
+  }
+
+  sections.push(describeBoxTree(box, allBoxes, 0, sharedComponents));
 
   sections.push('## Instructions\n\n' +
     'Generate a single, self-contained component for this section. ' +
@@ -124,11 +144,12 @@ export function buildBoxPrompt(
 export function assemblePagePrompts(
   page: Page,
   allBoxes: Record<string, Box>,
-  context: ProjectContext
+  context: ProjectContext,
+  sharedComponents?: Record<string, SharedComponent>
 ): { systemPrompt: string; userPrompt: string } {
   return {
     systemPrompt: buildSystemPrompt(context),
-    userPrompt: buildPagePrompt(page, allBoxes),
+    userPrompt: buildPagePrompt(page, allBoxes, sharedComponents),
   };
 }
 
@@ -138,11 +159,12 @@ export function assemblePagePrompts(
 export function assembleBoxPrompts(
   box: Box,
   allBoxes: Record<string, Box>,
-  context: ProjectContext
+  context: ProjectContext,
+  sharedComponents?: Record<string, SharedComponent>
 ): { systemPrompt: string; userPrompt: string } {
   return {
     systemPrompt: buildSystemPrompt(context),
-    userPrompt: buildBoxPrompt(box, allBoxes),
+    userPrompt: buildBoxPrompt(box, allBoxes, sharedComponents),
   };
 }
 
@@ -189,6 +211,58 @@ function designTokensSection(tokens: DesignTokens): string {
   return lines.join('\n');
 }
 
+/**
+ * Collect all shared components referenced by a list of boxes (recursively).
+ */
+function collectReferencedSharedComponents(
+  topBoxes: Box[],
+  allBoxes: Record<string, Box>,
+  sharedComponents?: Record<string, SharedComponent>
+): SharedComponent[] {
+  if (!sharedComponents) return [];
+
+  const seen = new Set<string>();
+  const result: SharedComponent[] = [];
+
+  function walk(box: Box) {
+    if (box.sharedComponentId && !seen.has(box.sharedComponentId)) {
+      seen.add(box.sharedComponentId);
+      const sc = sharedComponents![box.sharedComponentId];
+      if (sc) result.push(sc);
+    }
+    for (const childId of box.childIds) {
+      const child = allBoxes[childId];
+      if (child) walk(child);
+    }
+  }
+
+  for (const box of topBoxes) {
+    walk(box);
+  }
+
+  return result;
+}
+
+/**
+ * Describe shared components as a prompt section.
+ */
+function sharedComponentsSection(components: SharedComponent[]): string {
+  const lines = ['## Shared Components\n\nThe following shared components are referenced on this page:'];
+
+  for (const sc of components) {
+    lines.push(`### ${sc.name}`);
+    if (sc.spec.intent) {
+      lines.push(`Intent: ${sc.spec.intent}`);
+    }
+    if (sc.latestCode) {
+      lines.push(`Existing implementation:\n\`\`\`\n${sc.latestCode}\n\`\`\``);
+    }
+    lines.push(`Used ${sc.instanceIds.length} time(s) on this page.`);
+  }
+
+  return lines.join('\n\n');
+}
+
 function outputRules(context: ProjectContext): string {
   const rules = [
     'Output Rules:',
@@ -231,7 +305,8 @@ function outputRules(context: ProjectContext): string {
 function describeBoxTree(
   box: Box,
   allBoxes: Record<string, Box>,
-  depth: number
+  depth: number,
+  sharedComponents?: Record<string, SharedComponent>
 ): string {
   const indent = '  '.repeat(depth);
   const lines: string[] = [];
@@ -245,6 +320,12 @@ function describeBoxTree(
     lines.push(`${indent}Position: x=${box.x}, y=${box.y}, size=${box.width}x${box.height}`);
   } else {
     lines.push(`${indent}#### ${name}`);
+  }
+
+  // Shared component reference
+  if (box.sharedComponentId && sharedComponents?.[box.sharedComponentId]) {
+    const sc = sharedComponents[box.sharedComponentId];
+    lines.push(`${indent}[Shared Component: "${sc.name}"]`);
   }
 
   // Spec details
@@ -264,7 +345,7 @@ function describeBoxTree(
 
     for (const child of children) {
       lines.push('');
-      lines.push(describeBoxTree(child, allBoxes, depth + 1));
+      lines.push(describeBoxTree(child, allBoxes, depth + 1, sharedComponents));
     }
   }
 

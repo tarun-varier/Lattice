@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { nanoid } from 'nanoid';
-import type { Page, SharedComponent } from '@shared/types';
+import type { Page, SharedComponent, BoxSpec } from '@shared/types';
 
 interface ProjectState {
   pages: Page[];
@@ -20,6 +20,15 @@ interface ProjectState {
     componentId: string,
     patch: Partial<SharedComponent>
   ) => void;
+  createSharedComponentFromBox: (
+    name: string,
+    spec: BoxSpec,
+    boxId: string,
+    latestCode?: string
+  ) => string;
+  addInstanceToSharedComponent: (componentId: string, boxId: string) => void;
+  removeInstanceFromSharedComponent: (componentId: string, boxId: string) => void;
+  updateSharedComponentSpec: (componentId: string, spec: BoxSpec) => void;
 
   reset: () => void;
 }
@@ -115,6 +124,75 @@ export const useProjectStore = create<ProjectState>((set) => ({
         sharedComponents: {
           ...s.sharedComponents,
           [componentId]: { ...existing, ...patch, id: componentId },
+        },
+      };
+    });
+  },
+
+  createSharedComponentFromBox: (
+    name: string,
+    spec: BoxSpec,
+    boxId: string,
+    latestCode?: string
+  ) => {
+    const id = `sc_${nanoid(8)}`;
+    const component: SharedComponent = {
+      id,
+      name,
+      spec: { ...spec },
+      latestCode,
+      instanceIds: [boxId],
+    };
+    set((s) => ({
+      sharedComponents: {
+        ...s.sharedComponents,
+        [id]: component,
+      },
+    }));
+    return id;
+  },
+
+  addInstanceToSharedComponent: (componentId: string, boxId: string) => {
+    set((s) => {
+      const existing = s.sharedComponents[componentId];
+      if (!existing) return s;
+      if (existing.instanceIds.includes(boxId)) return s;
+      return {
+        sharedComponents: {
+          ...s.sharedComponents,
+          [componentId]: {
+            ...existing,
+            instanceIds: [...existing.instanceIds, boxId],
+          },
+        },
+      };
+    });
+  },
+
+  removeInstanceFromSharedComponent: (componentId: string, boxId: string) => {
+    set((s) => {
+      const existing = s.sharedComponents[componentId];
+      if (!existing) return s;
+      return {
+        sharedComponents: {
+          ...s.sharedComponents,
+          [componentId]: {
+            ...existing,
+            instanceIds: existing.instanceIds.filter((id) => id !== boxId),
+          },
+        },
+      };
+    });
+  },
+
+  updateSharedComponentSpec: (componentId: string, spec: BoxSpec) => {
+    set((s) => {
+      const existing = s.sharedComponents[componentId];
+      if (!existing) return s;
+      return {
+        sharedComponents: {
+          ...s.sharedComponents,
+          [componentId]: { ...existing, spec: { ...spec } },
         },
       };
     });
