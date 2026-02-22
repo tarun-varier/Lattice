@@ -1,11 +1,11 @@
 // ============================================================
-// Lattice — OpenAI Provider (raw fetch, streaming SSE)
+// Lattice — OpenAI Provider (using Vercel AI SDK)
 // ============================================================
 
+import { createOpenAI } from '@ai-sdk/openai';
+import { streamText } from 'ai';
 import type { GenerateRequest, GenerateResponse } from '../../shared/types';
 import type { AIProvider, StreamChunkCallback } from './ai-provider';
-
-const OPENAI_API_URL = 'https://api.openai.com/v1/chat/completions';
 
 export class OpenAIProvider implements AIProvider {
   readonly id = 'openai' as const;
@@ -18,136 +18,55 @@ export class OpenAIProvider implements AIProvider {
     apiKey: string,
     onChunk?: StreamChunkCallback
   ): Promise<GenerateResponse> {
-    const shouldStream = request.stream !== false && !!onChunk;
-
-    const body: Record<string, unknown> = {
-      model: request.model || this.defaultModel,
-      messages: [
-        { role: 'system', content: request.systemPrompt },
-        { role: 'user', content: request.prompt },
-      ],
-      temperature: request.temperature ?? 0.7,
-      max_tokens: request.maxTokens ?? 4096,
-      stream: shouldStream,
-    };
-
-    // Include stream_options to get usage data even when streaming
-    if (shouldStream) {
-      body.stream_options = { include_usage: true };
-    }
-
-    const response = await fetch(OPENAI_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(body),
+    const openai = createOpenAI({
+      apiKey,
     });
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      let errorMessage: string;
-      try {
-        const parsed = JSON.parse(errorBody);
-        errorMessage = parsed.error?.message || `OpenAI API error: ${response.status}`;
-      } catch {
-        errorMessage = `OpenAI API error: ${response.status} — ${errorBody.slice(0, 200)}`;
-      }
-      throw new Error(errorMessage);
-    }
-
-    if (shouldStream) {
-      return this._handleStream(response, onChunk!);
-    } else {
-      return this._handleNonStream(response);
-    }
-  }
-
-  private async _handleNonStream(response: Response): Promise<GenerateResponse> {
-    const data = (await response.json()) as any;
-    const code = data.choices?.[0]?.message?.content ?? '';
-    return {
-      code: this._stripCodeFences(code),
-      usage: data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens,
-            completionTokens: data.usage.completion_tokens,
-          }
-        : undefined,
-    };
-  }
-
-  private async _handleStream(
-    response: Response,
-    onChunk: StreamChunkCallback
-  ): Promise<GenerateResponse> {
-    const reader = response.body?.getReader();
-    if (!reader) {
-      throw new Error('OpenAI: response body is not readable');
-    }
-
-    const decoder = new TextDecoder();
-    let fullContent = '';
-    let usage: { promptTokens: number; completionTokens: number } | undefined;
-    let buffer = '';
+    const model = openai(request.model || this.defaultModel);
 
     try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      const result = await streamText({
+        model,
+        system: request.systemPrompt,
+        prompt: request.prompt,
+        temperature: request.temperature ?? 0.7,
+        maxOutputTokens: request.maxTokens ?? 4096,
+      });
 
-        buffer += decoder.decode(value, { stream: true });
+      let fullContent = '';
 
-        // Process complete SSE lines
-        const lines = buffer.split('\n');
-        // Keep incomplete last line in buffer
-        buffer = lines.pop() ?? '';
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith('data: ')) continue;
-
-          const payload = trimmed.slice(6); // strip 'data: '
-          if (payload === '[DONE]') continue;
-
-          try {
-            const parsed = JSON.parse(payload);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              fullContent += delta;
-              onChunk(delta);
-            }
-
-            // Usage comes in the final chunk when stream_options.include_usage is true
-            if (parsed.usage) {
-              usage = {
-                promptTokens: parsed.usage.prompt_tokens,
-                completionTokens: parsed.usage.completion_tokens,
-              };
-            }
-          } catch {
-            // Skip malformed SSE chunks
-          }
+      // Stream the text chunks
+      for await (const textPart of result.textStream) {
+        fullContent += textPart;
+        if (onChunk) {
+          onChunk(textPart);
         }
       }
-    } finally {
-      reader.releaseLock();
-    }
 
-    return {
-      code: this._stripCodeFences(fullContent),
-      usage,
-    };
+      // Get usage info
+      const usage = await result.usage;
+
+      return {
+        code: this._stripCodeFences(fullContent),
+        usage:
+          usage && usage.inputTokens !== undefined && usage.outputTokens !== undefined
+            ? {
+                promptTokens: usage.inputTokens,
+                completionTokens: usage.outputTokens,
+              }
+            : undefined,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`OpenAI error: ${message}`);
+    }
   }
 
   /**
    * Strip markdown code fences if the model wraps output in them.
-   * The prompt instructs models not to, but this is a safety net.
    */
   private _stripCodeFences(code: string): string {
     const trimmed = code.trim();
-    // Match ```lang\n...\n``` or ```\n...\n```
     const fenceMatch = trimmed.match(/^```(?:\w+)?\s*\n([\s\S]*?)\n```\s*$/);
     if (fenceMatch) {
       return fenceMatch[1];

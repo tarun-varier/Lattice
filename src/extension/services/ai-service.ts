@@ -8,6 +8,7 @@ import type { AIProvider, ProviderId, StreamChunkCallback } from './ai-provider'
 import { PROVIDER_INFO } from './ai-provider';
 import { OpenAIProvider } from './openai-provider';
 import { AnthropicProvider } from './anthropic-provider';
+import { GeminiProvider } from './gemini-provider';
 
 /** SecretStorage key prefix for API keys */
 const SECRET_KEY_PREFIX = 'lattice.apiKey.';
@@ -32,8 +33,10 @@ export class AIService {
     // Register built-in providers
     const openai = new OpenAIProvider();
     const anthropic = new AnthropicProvider();
+    const gemini = new GeminiProvider();
     this._providers.set(openai.id, openai);
     this._providers.set(anthropic.id, anthropic);
+    this._providers.set(gemini.id, gemini);
   }
 
   /**

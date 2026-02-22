@@ -73,6 +73,7 @@ async function handleGenerate(
   aiService: AIService
 ) {
   try {
+    console.log('[Lattice] Starting generation with model:', payload.model);
     const response = await aiService.generate(payload, (chunk) => {
       // Stream each text chunk back to the webview
       panel.postMessage({
@@ -82,6 +83,7 @@ async function handleGenerate(
       });
     });
 
+    console.log('[Lattice] Generation complete, code length:', response.code.length);
     // Send the final completed response
     panel.postMessage({
       type: 'generateComplete',
@@ -89,8 +91,10 @@ async function handleGenerate(
       payload: response,
     });
   } catch (error) {
+    console.error('[Lattice] Generation error:', error);
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error during generation';
+    console.error('[Lattice] Error message:', errorMessage);
     panel.postMessage({
       type: 'generateError',
       id: requestId,

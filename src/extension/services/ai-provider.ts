@@ -43,7 +43,7 @@ export interface AIProvider {
 /**
  * Supported provider IDs — used as discriminant in config.
  */
-export type ProviderId = 'openai' | 'anthropic';
+export type ProviderId = 'openai' | 'anthropic' | 'gemini';
 
 /**
  * Map of provider ID → display info, used for UI dropdowns.
@@ -59,6 +59,19 @@ export const PROVIDER_INFO: Record<ProviderId, { name: string; models: string[] 
       'claude-sonnet-4-20250514',
       'claude-3-5-sonnet-20241022',
       'claude-3-haiku-20240307',
+    ],
+  },
+  gemini: {
+    name: 'Google Gemini',
+    models: [
+      'gemini-2.0-flash-exp',
+      'gemini-exp-1206',
+      'gemini-2.0-flash-thinking-exp-01-21',
+      'gemini-1.5-pro-latest',
+      'gemini-1.5-pro',
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash',
+      'gemini-1.5-flash-8b',
     ],
   },
 };

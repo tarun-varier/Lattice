@@ -48,6 +48,7 @@ const SPACINGS: { value: DesignTokens['spacing']; label: string }[] = [
 const PROVIDERS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic' },
+  { value: 'gemini', label: 'Google Gemini' },
 ];
 
 const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
@@ -61,6 +62,16 @@ const PROVIDER_MODELS: Record<string, { value: string; label: string }[]> = {
     { value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' },
     { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
     { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' },
+  ],
+  gemini: [
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (Recommended)' },
+    { value: 'gemini-2.5-flash-latest', label: 'Gemini 2.5 Flash Latest' },
+    { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
+    { value: 'gemini-2.5-pro-latest', label: 'Gemini 2.5 Pro Latest' },
+    { value: 'gemini-2.5-flash-8b', label: 'Gemini 2.5 Flash-8B' },
+    { value: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (Experimental)' },
+    { value: 'gemini-exp-1206', label: 'Gemini Exp 1206' },
+    { value: 'gemini-2.0-flash-thinking-exp-01-21', label: 'Gemini 2.0 Flash Thinking' },
   ],
 };
 
