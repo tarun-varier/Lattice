@@ -382,7 +382,7 @@ function SaveBar({
             value={filePath}
             onChange={(e) => onFilePathChange(e.target.value)}
             placeholder="src/components/MyComponent.tsx"
-            className="w-full text-xs font-mono bg-background border border-border rounded px-2.5 py-1.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:border-primary/50"
+            className="w-full text-xs font-mono bg-background border border-border rounded px-2.5 py-1.5 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-muted-foreground/50"
             onKeyDown={(e) => {
               if (e.key === 'Enter') onSave();
               if (e.key === 'Escape') onClose();

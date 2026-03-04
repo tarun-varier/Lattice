@@ -302,7 +302,7 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
         {/* Intent */}
         <FieldGroup label="Intent" hint="What should this box be / do?">
           <textarea
-            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/60"
             rows={3}
             placeholder='e.g. "A responsive hero section with a headline, subtext, and CTA button"'
             value={spec.intent}
@@ -313,7 +313,7 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
         {/* Data Shape */}
         <FieldGroup label="Data Shape" hint="What data flows in?">
           <textarea
-            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/60"
             rows={2}
             placeholder='e.g. "{ title: string, subtitle: string, ctaUrl: string }"'
             value={spec.dataShape ?? ''}
@@ -324,7 +324,7 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
         {/* Behavior */}
         <FieldGroup label="Behavior" hint="How does it behave?">
           <textarea
-            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+            className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 resize-none outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/60"
             rows={2}
             placeholder='e.g. "Fetches hero content on mount, CTA opens in new tab"'
             value={spec.behavior ?? ''}
@@ -352,11 +352,11 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
             <div className="space-y-2 pl-4 border-l border-border/50 ml-1">
               {INTERACTION_KEYS.map((key) => (
                 <div key={key}>
-                  <label className="text-[10px] text-muted-foreground/70 uppercase tracking-wider">
+                  <label className="text-[10px] text-muted-foreground uppercase tracking-wider">
                     {INTERACTION_LABELS[key]}
                   </label>
                   <input
-                    className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1 outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50 mt-0.5"
+                    className="w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1 outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/60 mt-0.5"
                     placeholder={`Describe ${key} state...`}
                     value={spec.interactions[key] ?? ''}
                     onChange={(e) => updateInteraction(key, e.target.value)}
@@ -386,13 +386,13 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
               {spec.refinements.map((r, i) => (
                 <div key={i} className="flex items-center gap-1">
                   <input
-                    className="flex-1 bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1 outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50"
+                    className="flex-1 bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1 outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/60"
                     placeholder="e.g. Must be accessible, Use skeleton loaders..."
                     value={r}
                     onChange={(e) => updateRefinement(i, e.target.value)}
                   />
                   <button
-                    className="p-0.5 text-muted-foreground/50 hover:text-destructive rounded flex-shrink-0"
+                    className="p-0.5 text-muted-foreground hover:text-destructive rounded flex-shrink-0"
                     onClick={() => removeRefinement(i)}
                   >
                     <Trash2 className="w-3 h-3" />
@@ -401,7 +401,7 @@ export function SpecPopover({ canvasRef }: SpecPopoverProps) {
               ))}
             </div>
           ) : (
-            <p className="text-[10px] text-muted-foreground/40 italic">
+            <p className="text-[10px] text-muted-foreground/70 italic">
               No refinements yet — add extra constraints or notes
             </p>
           )}
@@ -427,7 +427,7 @@ function FieldGroup({
       <label className="text-xs font-medium text-muted-foreground block mb-0.5">
         {label}
       </label>
-      <p className="text-[10px] text-muted-foreground/50 mb-1">{hint}</p>
+      <p className="text-[10px] text-muted-foreground/70 mb-1">{hint}</p>
       {children}
     </div>
   );

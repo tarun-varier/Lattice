@@ -145,7 +145,7 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
       >
         {/* Drag handle */}
         <button
-          className="cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground p-0.5 -ml-1"
+          className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-0.5 -ml-1"
           {...attributes}
           {...listeners}
         >
@@ -171,7 +171,7 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
               'flex-1 truncate cursor-text select-none',
               box.label
                 ? 'text-foreground/80'
-                : 'text-muted-foreground/50 italic'
+                : 'text-muted-foreground italic'
             )}
             onDoubleClick={handleDoubleClick}
           >
@@ -181,7 +181,7 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
 
         {/* Direction indicator */}
         {hasChildren && (
-          <span className="text-[10px] text-muted-foreground/50 font-mono">
+          <span className="text-[10px] text-muted-foreground/70 font-mono">
             {box.direction === 'row' ? 'row' : 'col'}
           </span>
         )}
@@ -194,7 +194,7 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
           )}
         >
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleToggleDirection}
             title={`Switch to ${box.direction === 'row' ? 'column' : 'row'} layout`}
           >
@@ -205,21 +205,21 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
             )}
           </button>
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleAddChild}
             title="Add child box"
           >
             <Plus className="w-3 h-3" />
           </button>
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleDuplicate}
             title="Duplicate box"
           >
             <Copy className="w-3 h-3" />
           </button>
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-destructive rounded"
+            className="p-0.5 text-muted-foreground hover:text-destructive rounded"
             onClick={handleDelete}
             title="Delete box"
           >
@@ -245,10 +245,10 @@ export function Box({ box, depth, parentDirection = 'column', hasSiblings = fals
         </div>
       )}
 
-      {/* Empty children placeholder (when selected and no children) */}
-      {!hasChildren && isSelected && (
+      {/* Empty children placeholder (when no children) */}
+      {!hasChildren && (
         <div className="px-2 pb-1.5">
-          <div className="text-[10px] text-muted-foreground/40 text-center py-1">
+          <div className="text-xs text-muted-foreground/70 text-center py-1">
             {box.spec?.intent ? (
               <span className="italic line-clamp-1">{box.spec.intent}</span>
             ) : (

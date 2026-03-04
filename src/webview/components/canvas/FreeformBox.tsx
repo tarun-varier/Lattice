@@ -67,12 +67,6 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
 
   // Drag state
   const [isDragging, setIsDragging] = useState(false);
-  const dragState = useRef<{
-    startMouseX: number;
-    startMouseY: number;
-    startBoxX: number;
-    startBoxY: number;
-  } | null>(null);
 
   useEffect(() => {
     if (isEditingLabel && labelInputRef.current) {
@@ -86,7 +80,8 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
     setIsEditingLabel(false);
   }, [box.id, labelDraft, updateBox]);
 
-  // --- Freeform drag via pointer events on the header / drag handle ---
+  // --- Freeform drag via pointer events (header + empty body) ---
+  // Uses a 4px movement threshold so simple clicks don't trigger drag.
 
   const handleDragPointerDown = useCallback(
     (e: React.PointerEvent) => {
@@ -95,25 +90,28 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
 
       selectBox(box.id);
 
-      dragState.current = {
-        startMouseX: e.clientX,
-        startMouseY: e.clientY,
-        startBoxX: box.x,
-        startBoxY: box.y,
-      };
-      setIsDragging(true);
+      const startMouseX = e.clientX;
+      const startMouseY = e.clientY;
+      const startBoxX = box.x;
+      const startBoxY = box.y;
+      let hasMoved = false;
 
       const handlePointerMove = (moveEvent: PointerEvent) => {
-        if (!dragState.current) return;
-        const dx = moveEvent.clientX - dragState.current.startMouseX;
-        const dy = moveEvent.clientY - dragState.current.startMouseY;
-        const newX = Math.max(0, dragState.current.startBoxX + dx);
-        const newY = Math.max(0, dragState.current.startBoxY + dy);
+        const dx = moveEvent.clientX - startMouseX;
+        const dy = moveEvent.clientY - startMouseY;
+
+        if (!hasMoved) {
+          if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+          hasMoved = true;
+          setIsDragging(true);
+        }
+
+        const newX = Math.max(0, startBoxX + dx);
+        const newY = Math.max(0, startBoxY + dy);
         updateBoxPosition(box.id, newX, newY);
       };
 
       const handlePointerUp = () => {
-        dragState.current = null;
         setIsDragging(false);
         window.removeEventListener('pointermove', handlePointerMove);
         window.removeEventListener('pointerup', handlePointerUp);
@@ -293,7 +291,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
         onPointerDown={handleDragPointerDown}
       >
         {/* Move icon */}
-        <Move className="w-3 h-3 text-muted-foreground/50 flex-shrink-0" />
+        <Move className="w-3 h-3 text-muted-foreground flex-shrink-0" />
 
         {/* Label */}
         {isEditingLabel ? (
@@ -315,7 +313,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
               'flex-1 truncate cursor-text',
               box.label
                 ? 'text-foreground/80'
-                : 'text-muted-foreground/50 italic'
+                : 'text-muted-foreground italic'
             )}
             onDoubleClick={handleDoubleClick}
             onPointerDown={(e) => e.stopPropagation()}
@@ -333,7 +331,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
 
         {/* Direction indicator */}
         {hasChildren && (
-          <span className="text-[10px] text-muted-foreground/50 font-mono">
+          <span className="text-[10px] text-muted-foreground/70 font-mono">
             {box.direction === 'row' ? 'row' : 'col'}
           </span>
         )}
@@ -347,7 +345,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
           onPointerDown={(e) => e.stopPropagation()}
         >
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleToggleDirection}
             title={`Switch to ${box.direction === 'row' ? 'column' : 'row'} layout`}
           >
@@ -358,14 +356,14 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
             )}
           </button>
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleAddChild}
             title="Add child box"
           >
             <Plus className="w-3 h-3" />
           </button>
           <button
-            className="p-0.5 text-primary/60 hover:text-primary rounded"
+            className="p-0.5 text-primary/80 hover:text-primary rounded"
             onClick={handleGenerateBox}
             title="Generate code for this box"
           >
@@ -374,7 +372,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
           {/* Shared component: extract or unlink */}
           {isSharedInstance ? (
             <button
-              className="p-0.5 text-primary/60 hover:text-muted-foreground rounded"
+              className="p-0.5 text-primary/80 hover:text-muted-foreground rounded"
               onClick={handleUnlinkSharedComponent}
               title="Unlink from shared component"
             >
@@ -383,7 +381,7 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
           ) : (
             box.spec && (
               <button
-                className="p-0.5 text-muted-foreground/60 hover:text-primary rounded"
+                className="p-0.5 text-muted-foreground hover:text-primary rounded"
                 onClick={handleExtractSharedComponent}
                 title="Extract as shared component"
               >
@@ -392,14 +390,14 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
             )
           )}
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-foreground rounded"
+            className="p-0.5 text-muted-foreground hover:text-foreground rounded"
             onClick={handleDuplicate}
             title="Duplicate box"
           >
             <Copy className="w-3 h-3" />
           </button>
           <button
-            className="p-0.5 text-muted-foreground/60 hover:text-destructive rounded"
+            className="p-0.5 text-muted-foreground hover:text-destructive rounded"
             onClick={handleDelete}
             title="Delete box"
           >
@@ -412,11 +410,12 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
       <div
         className={cn(
           'flex-1 overflow-auto',
-          hasChildren ? 'p-1.5' : ''
+          hasChildren ? 'p-1.5' : 'cursor-grab active:cursor-grabbing'
         )}
         style={{
           height: `calc(100% - 28px)`, // subtract header height
         }}
+        {...(!hasChildren ? { onPointerDown: handleDragPointerDown } : {})}
       >
         {hasChildren ? (
           <SortableBoxList
@@ -426,18 +425,16 @@ export function FreeformBox({ box, canvasRef }: FreeformBoxProps) {
             depth={1}
           />
         ) : (
-          // Empty children placeholder
-          isSelected && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-[10px] text-muted-foreground/40 text-center py-1">
-                {box.spec?.intent ? (
-                  <span className="italic line-clamp-1">{box.spec.intent}</span>
-                ) : (
-                  'Click to add spec or drag boxes here'
-                )}
-              </div>
+          // Empty children placeholder — always visible
+          <div className="flex items-center justify-center h-full pointer-events-none">
+            <div className="text-xs text-muted-foreground/70 text-center py-1">
+              {box.spec?.intent ? (
+                <span className="italic line-clamp-1">{box.spec.intent}</span>
+              ) : (
+                'Click to add spec or drag boxes here'
+              )}
             </div>
-          )
+          </div>
         )}
       </div>
 

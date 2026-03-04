@@ -183,14 +183,14 @@ export function Canvas() {
               // Empty state centered in the viewport
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                 <div className="flex flex-col items-center gap-3">
-                  <div className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-                    <Plus className="w-6 h-6 text-muted-foreground/50" />
+                  <div className="w-16 h-16 rounded-lg border-2 border-dashed border-muted-foreground/50 flex items-center justify-center">
+                    <Plus className="w-6 h-6 text-muted-foreground" />
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-medium text-muted-foreground">
+                    <p className="text-sm font-medium text-foreground/80">
                       No boxes yet
                     </p>
-                    <p className="text-xs text-muted-foreground/70 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       Click the button below to add your first box
                     </p>
                   </div>
@@ -209,7 +209,7 @@ export function Canvas() {
 
             {/* Dot grid pattern for visual orientation */}
             <div
-              className="absolute inset-0 pointer-events-none opacity-[0.03]"
+              className="absolute inset-0 pointer-events-none opacity-[0.07]"
               style={{
                 backgroundImage:
                   'radial-gradient(circle, currentColor 1px, transparent 1px)',

@@ -586,7 +586,7 @@ export function SetupDialog() {
 // ── Shared styles ──
 
 const inputClass =
-  'w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground/50';
+  'w-full bg-input/50 text-foreground text-xs rounded-md border border-border px-2 py-1.5 outline-none focus:border-muted-foreground/50 placeholder:text-muted-foreground/50';
 
 // ── Sub-components ──
 
