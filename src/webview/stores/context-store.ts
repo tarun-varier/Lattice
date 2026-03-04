@@ -4,11 +4,15 @@ import type { ProjectContext, DesignTokens } from '@shared/types';
 interface ContextState {
   context: ProjectContext;
   isSetupComplete: boolean;
+  persistenceReady: boolean;
+  workspaceFolderName: string | null;
 
   setContext: (context: ProjectContext) => void;
   updateContext: (patch: Partial<ProjectContext>) => void;
   updateDesignTokens: (patch: Partial<DesignTokens>) => void;
   setSetupComplete: (complete: boolean) => void;
+  setPersistenceReady: (ready: boolean) => void;
+  setWorkspaceFolderName: (name: string | null) => void;
   reset: () => void;
 }
 
@@ -36,6 +40,8 @@ const defaultContext: ProjectContext = {
 export const useContextStore = create<ContextState>((set) => ({
   context: defaultContext,
   isSetupComplete: false,
+  persistenceReady: false,
+  workspaceFolderName: null,
 
   setContext: (context: ProjectContext) => set({ context }),
 
@@ -55,9 +61,17 @@ export const useContextStore = create<ContextState>((set) => ({
   setSetupComplete: (complete: boolean) =>
     set({ isSetupComplete: complete }),
 
+  setPersistenceReady: (ready: boolean) =>
+    set({ persistenceReady: ready }),
+
+  setWorkspaceFolderName: (name: string | null) =>
+    set({ workspaceFolderName: name }),
+
   reset: () =>
     set({
       context: defaultContext,
       isSetupComplete: false,
+      persistenceReady: false,
+      workspaceFolderName: null,
     }),
 }));

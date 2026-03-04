@@ -10,6 +10,7 @@ import { usePersistence } from './hooks/use-persistence';
 
 export function App() {
   const isSetupComplete = useContextStore((s) => s.isSetupComplete);
+  const persistenceReady = useContextStore((s) => s.persistenceReady);
   const setSetupDialogOpen = useUiStore((s) => s.setSetupDialogOpen);
 
   // Set up AI response listeners (generateChunk, generateComplete, generateError)
@@ -18,12 +19,12 @@ export function App() {
   // Set up state persistence (VSCode webview state + .lattice/ directory)
   usePersistence();
 
-  // Show setup dialog on first load if setup hasn't been completed
+  // Show setup dialog only after persistence has loaded and setup hasn't been completed
   useEffect(() => {
-    if (!isSetupComplete) {
+    if (persistenceReady && !isSetupComplete) {
       setSetupDialogOpen(true);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [persistenceReady, isSetupComplete, setSetupDialogOpen]);
 
   return (
     <HostBridgeProvider>

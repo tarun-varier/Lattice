@@ -152,18 +152,35 @@ export function usePersistence() {
       restoreState(cached);
     }
 
-    // 2. Request project from .lattice/ directory (may override)
+    // 2. Listen for workspace info from extension host
+    const unsubInit = bridge.on('initialized', (msg: ResponseMessage) => {
+      if (msg.type !== 'initialized') return;
+      const folderName = msg.payload.workspaceFolderName;
+      useContextStore.getState().setWorkspaceFolderName(folderName);
+
+      // If setup hasn't been completed and project name is still the default,
+      // use the workspace folder name instead
+      const { isSetupComplete, context } = useContextStore.getState();
+      if (!isSetupComplete && folderName && context.name === 'Untitled Project') {
+        useContextStore.getState().updateContext({ name: folderName });
+      }
+    });
+
+    // 3. Request project from .lattice/ directory (may override)
     const unsub = bridge.on('projectLoaded', (msg: ResponseMessage) => {
       if (msg.type !== 'projectLoaded') return;
       if (msg.payload) {
         fromLatticeProject(msg.payload);
         notify.info('Project loaded');
       }
+      // Mark persistence as ready — project load attempt is complete
+      useContextStore.getState().setPersistenceReady(true);
     });
 
     bridge.send({ type: 'loadProject' });
 
     return () => {
+      unsubInit();
       unsub();
     };
   }, []);

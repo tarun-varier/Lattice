@@ -13,10 +13,19 @@ export function handleMessage(
   aiService: AIService
 ) {
   switch (message.type) {
-    case 'ready':
-      // Webview is ready — send initial state
-      panel.postMessage({ type: 'initialized' });
+    case 'ready': {
+      // Webview is ready — send initial state including workspace info
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      const workspaceFolderName =
+        workspaceFolders && workspaceFolders.length > 0
+          ? workspaceFolders[0].name
+          : null;
+      panel.postMessage({
+        type: 'initialized',
+        payload: { workspaceFolderName },
+      });
       break;
+    }
 
     case 'detectProject':
       // TODO: Phase 4 — scan workspace for framework/config

@@ -29,7 +29,7 @@ export type RequestMessage =
 // --- Extension Host → Webview ---
 
 export type ResponseMessage =
-  | { type: 'initialized' }
+  | { type: 'initialized'; payload: { workspaceFolderName: string | null } }
   | { type: 'projectDetected'; payload: DetectedProject }
   | { type: 'projectLoaded'; payload: LatticeProject | null }
   | { type: 'generateChunk'; id: string; payload: { text: string } }

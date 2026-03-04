@@ -3,8 +3,9 @@
   "displayName": "Lattice",
   "description": "Structured AI frontend builder — sketch layouts, describe intent, generate code",
   "version": "0.1.0",
-  "publisher": "lattice",
+  "publisher": "t0erun",
   "license": "MIT",
+  "repository": "https://github.com/tarun-varier/Lattice",
   "engines": {
     "vscode": "^1.85.0"
   },
