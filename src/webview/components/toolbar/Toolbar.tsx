@@ -23,11 +23,11 @@ export function Toolbar() {
   const context = useContextStore((s) => s.context);
   const setLastPrompt = useGenerationStore((s) => s.setLastPrompt);
   const startGeneration = useGenerationStore((s) => s.startGeneration);
-  const mapRequestToBox = useGenerationStore((s) => s.mapRequestToBox);
+  const mapRequestToPage = useGenerationStore((s) => s.mapRequestToPage);
 
   const pageHasBoxes = (activePage?.boxIds.length ?? 0) > 0;
-  const isAnyGenerating = useGenerationStore(
-    (s) => activePage?.boxIds.some((id) => s.generating[id]) ?? false
+  const isPageGenerating = useGenerationStore(
+    (s) => activePage ? !!s.generating[`page:${activePage.id}`] : false
   );
 
   const handleAddPage = useCallback(() => {
@@ -64,16 +64,10 @@ export function Toolbar() {
     const bridge = getHostBridge();
     const requestId = bridge.nextRequestId();
 
-    // Mark all top-level boxes as generating
-    // For page-level generation, map the request to the first box
-    // so the streaming output goes to it
-    const firstBoxId = activePage.boxIds[0];
-    for (const boxId of activePage.boxIds) {
-      startGeneration(boxId);
-    }
-    if (firstBoxId) {
-      mapRequestToBox(requestId, firstBoxId);
-    }
+    // Mark the page as generating and map the request to the page key
+    const pageKey = `page:${activePage.id}`;
+    startGeneration(pageKey);
+    mapRequestToPage(requestId, activePage.id, activePage.boxIds);
 
     bridge.send({
       type: 'generate',
@@ -85,7 +79,7 @@ export function Toolbar() {
         stream: true,
       },
     });
-  }, [activePage, boxes, context, setLastPrompt, setPreviewTab, startGeneration, mapRequestToBox]);
+  }, [activePage, boxes, context, setLastPrompt, setPreviewTab, startGeneration, mapRequestToPage]);
 
   return (
     <div className="flex items-center justify-between h-10 px-3 border-b border-border bg-background flex-shrink-0">
@@ -119,9 +113,9 @@ export function Toolbar() {
       <div className="flex items-center gap-2">
         <button
           className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={!pageHasBoxes || isAnyGenerating}
+          disabled={!pageHasBoxes || isPageGenerating}
           title={
-            isAnyGenerating
+            isPageGenerating
               ? 'Generation in progress...'
               : pageHasBoxes
                 ? 'Generate all components on this page'
@@ -130,7 +124,7 @@ export function Toolbar() {
           onClick={handleGeneratePage}
         >
           <Play className="w-3 h-3" />
-          <span>{isAnyGenerating ? 'Generating...' : 'Generate Page'}</span>
+          <span>{isPageGenerating ? 'Generating...' : 'Generate Page'}</span>
         </button>
 
         <button

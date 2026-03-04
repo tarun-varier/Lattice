@@ -11,13 +11,24 @@ export interface AssembledPrompt {
   timestamp: number;
 }
 
+/**
+ * Tracks which page's boxes should be cleared when a page-level request completes.
+ */
+interface PageRequestInfo {
+  pageId: string;
+  boxIds: string[];
+}
+
 interface GenerationState {
   results: Record<string, GenerationResult>;
   generating: Record<string, boolean>;
   streamBuffers: Record<string, string>;
 
-  /** Maps requestId → boxId for routing streaming responses */
+  /** Maps requestId → target key (boxId or "page:<pageId>") for routing streaming responses */
   requestBoxMap: Record<string, string>;
+
+  /** Maps requestId → page info for page-level requests (so we can clear box generating states) */
+  pageRequestMap: Record<string, PageRequestInfo>;
 
   /** The most recently assembled prompt (for display in Output Panel) */
   lastPrompt: AssembledPrompt | null;
@@ -36,7 +47,9 @@ interface GenerationState {
   revertToVersion: (boxId: string, versionId: string) => void;
   setLastPrompt: (prompt: AssembledPrompt) => void;
   mapRequestToBox: (requestId: string, boxId: string) => void;
+  mapRequestToPage: (requestId: string, pageId: string, boxIds: string[]) => void;
   getBoxIdForRequest: (requestId: string) => string | undefined;
+  getPageInfoForRequest: (requestId: string) => PageRequestInfo | undefined;
   clearRequest: (requestId: string) => void;
   getResult: (boxId: string) => GenerationResult | undefined;
   isGenerating: (boxId: string) => boolean;
@@ -48,6 +61,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
   generating: {},
   streamBuffers: {},
   requestBoxMap: {},
+  pageRequestMap: {},
   lastPrompt: null,
 
   startGeneration: (boxId: string) => {
@@ -149,12 +163,23 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
     }));
   },
 
+  mapRequestToPage: (requestId: string, pageId: string, boxIds: string[]) => {
+    const pageKey = `page:${pageId}`;
+    set((s) => ({
+      requestBoxMap: { ...s.requestBoxMap, [requestId]: pageKey },
+      pageRequestMap: { ...s.pageRequestMap, [requestId]: { pageId, boxIds } },
+    }));
+  },
+
   getBoxIdForRequest: (requestId: string) => get().requestBoxMap[requestId],
+
+  getPageInfoForRequest: (requestId: string) => get().pageRequestMap[requestId],
 
   clearRequest: (requestId: string) => {
     set((s) => {
-      const { [requestId]: _, ...rest } = s.requestBoxMap;
-      return { requestBoxMap: rest };
+      const { [requestId]: _, ...restBox } = s.requestBoxMap;
+      const { [requestId]: __, ...restPage } = s.pageRequestMap;
+      return { requestBoxMap: restBox, pageRequestMap: restPage };
     });
   },
 
@@ -168,6 +193,7 @@ export const useGenerationStore = create<GenerationState>((set, get) => ({
       generating: {},
       streamBuffers: {},
       requestBoxMap: {},
+      pageRequestMap: {},
       lastPrompt: null,
     }),
 }));

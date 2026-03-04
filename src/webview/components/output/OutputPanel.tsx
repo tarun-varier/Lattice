@@ -21,6 +21,7 @@ import { useUiStore } from '../../stores/ui-store';
 import { useGenerationStore } from '../../stores/generation-store';
 import { useLayoutStore } from '../../stores/layout-store';
 import { useContextStore } from '../../stores/context-store';
+import { useProjectStore } from '../../stores/project-store';
 import { useShiki } from '../../hooks/use-shiki';
 import { useFileSave } from '../../hooks/use-file-save';
 import { suggestFilePath } from '../../lib/file-utils';
@@ -87,6 +88,7 @@ function TabButton({
 
 function CodeTab() {
   const selectedBoxId = useUiStore((s) => s.selectedBoxId);
+  const activePageId = useUiStore((s) => s.activePageId);
   const results = useGenerationStore((s) => s.results);
   const generating = useGenerationStore((s) => s.generating);
   const streamBuffers = useGenerationStore((s) => s.streamBuffers);
@@ -107,15 +109,20 @@ function CodeTab() {
   const [showSaveBar, setShowSaveBar] = useState(false);
   const [filePath, setFilePath] = useState('');
 
-  const result = selectedBoxId ? results[selectedBoxId] : null;
-  const isGenerating = selectedBoxId ? generating[selectedBoxId] : false;
-  const streamBuffer = selectedBoxId ? streamBuffers[selectedBoxId] : null;
+  // Determine the active result key — box-level result takes priority, then page-level
+  const pageKey = `page:${activePageId}`;
+  const activeKey = selectedBoxId && results[selectedBoxId] ? selectedBoxId : pageKey;
+  const isPageResult = activeKey === pageKey;
+
+  const result = results[activeKey] ?? null;
+  const isGenerating = !!generating[activeKey];
+  const streamBuffer = streamBuffers[activeKey] ?? null;
   const selectedBox = selectedBoxId ? boxes[selectedBoxId] : null;
 
-  // Reset history view and save bar when switching boxes
-  const [lastBoxId, setLastBoxId] = useState<string | null>(null);
-  if (selectedBoxId !== lastBoxId) {
-    setLastBoxId(selectedBoxId);
+  // Reset history view and save bar when switching active result
+  const [lastActiveKey, setLastActiveKey] = useState<string | null>(null);
+  if (activeKey !== lastActiveKey) {
+    setLastActiveKey(activeKey);
     setViewingHistoryIndex(null);
     setShowSaveBar(false);
     fileSave.resetStatus();
@@ -162,16 +169,21 @@ function CodeTab() {
   }, []);
 
   const handleRevert = useCallback(() => {
-    if (!selectedBoxId || !displayVersion || viewingHistoryIndex === null || viewingHistoryIndex === 0) return;
-    revertToVersion(selectedBoxId, displayVersion.id);
+    if (!activeKey || !displayVersion || viewingHistoryIndex === null || viewingHistoryIndex === 0) return;
+    revertToVersion(activeKey, displayVersion.id);
     setViewingHistoryIndex(null);
-  }, [selectedBoxId, displayVersion, viewingHistoryIndex, revertToVersion]);
+  }, [activeKey, displayVersion, viewingHistoryIndex, revertToVersion]);
+
+  // Determine label for save path suggestion
+  const pages = useProjectStore((s) => s.pages);
+  const activePage = pages.find((p) => p.id === activePageId);
+  const saveLabel = isPageResult ? (activePage?.name || 'Page') : (selectedBox?.label || '');
 
   // Open the save bar with a suggested file path
   const handleOpenSaveBar = useCallback(() => {
-    if (!selectedBox) return;
+    if (!result) return;
     const suggested = suggestFilePath(
-      selectedBox.label,
+      saveLabel,
       outputDirectory,
       framework,
       language,
@@ -180,7 +192,7 @@ function CodeTab() {
     setFilePath(suggested);
     setShowSaveBar(true);
     fileSave.resetStatus();
-  }, [selectedBox, outputDirectory, framework, language, namingConvention, fileSave]);
+  }, [result, saveLabel, outputDirectory, framework, language, namingConvention, fileSave]);
 
   // Handle save button click
   const handleSave = useCallback(() => {
@@ -190,16 +202,15 @@ function CodeTab() {
 
   // Handle browse button — ask extension for file picker
   const handleBrowse = useCallback(() => {
-    if (!selectedBox) return;
     const suggested = suggestFilePath(
-      selectedBox.label,
+      saveLabel,
       outputDirectory,
       framework,
       language,
       namingConvention
     );
     fileSave.selectPath(suggested);
-  }, [selectedBox, outputDirectory, framework, language, namingConvention, fileSave]);
+  }, [saveLabel, outputDirectory, framework, language, namingConvention, fileSave]);
 
   // When a path is selected from the save dialog, update the file path input
   useEffect(() => {
@@ -210,12 +221,13 @@ function CodeTab() {
 
   // Streaming state
   if (isGenerating && streamBuffer) {
+    const streamLabel = isPageResult ? 'page' : (selectedBox?.label || 'component');
     return (
       <div className="flex flex-col h-full">
         <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/20 flex-shrink-0">
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
           <span className="text-xs text-muted-foreground">
-            Generating {selectedBox?.label || 'component'}...
+            Generating {streamLabel}...
           </span>
         </div>
         <div className="flex-1 overflow-auto">
@@ -244,7 +256,7 @@ function CodeTab() {
         <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/20 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-foreground">
-              {selectedBox?.label || 'Component'}
+              {isPageResult ? 'Page' : (selectedBox?.label || 'Component')}
             </span>
             {totalVersions > 1 && (
               <div className="flex items-center gap-1">
@@ -340,7 +352,7 @@ function CodeTab() {
       <p className="text-xs text-muted-foreground/70 mt-1">
         {selectedBoxId
           ? 'Click "Generate Page" or use the generate button on a box'
-          : 'Select a box to see its generated code'}
+          : 'Select a box or click "Generate Page" to see generated code'}
       </p>
       {shikiLoading && (
         <p className="text-[10px] text-muted-foreground/50 mt-2">

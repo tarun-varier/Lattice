@@ -33,15 +33,15 @@ export function useAIListeners() {
     const unsubComplete = bridge.on('generateComplete', (msg: ResponseMessage) => {
       if (msg.type !== 'generateComplete') return;
       const state = store.getState();
-      const boxId = state.getBoxIdForRequest(msg.id);
-      if (boxId) {
+      const targetId = state.getBoxIdForRequest(msg.id);
+      if (targetId) {
         const code = msg.payload.code;
         const lastPrompt = state.lastPrompt;
         const prompt = lastPrompt?.userPrompt ?? '';
 
         // Complete the generation with the final code
         state.completeGeneration(
-          boxId,
+          targetId,
           code,
           prompt,
           'ai', // provider name — we can refine this later from config
@@ -54,14 +54,16 @@ export function useAIListeners() {
         // Switch to Code tab to show the result
         uiStore.getState().setPreviewTab('code');
 
-        // If this box is an instance of a shared component,
-        // store the latest generated code on the shared component
-        const box = useLayoutStore.getState().boxes[boxId];
-        if (box?.sharedComponentId) {
-          useProjectStore.getState().updateSharedComponent(
-            box.sharedComponentId,
-            { latestCode: code }
-          );
+        // For box-level requests, update shared component code if applicable
+        const isPageRequest = targetId.startsWith('page:');
+        if (!isPageRequest) {
+          const box = useLayoutStore.getState().boxes[targetId];
+          if (box?.sharedComponentId) {
+            useProjectStore.getState().updateSharedComponent(
+              box.sharedComponentId,
+              { latestCode: code }
+            );
+          }
         }
 
         notify.success('Code generation complete');
@@ -72,9 +74,9 @@ export function useAIListeners() {
     const unsubError = bridge.on('generateError', (msg: ResponseMessage) => {
       if (msg.type !== 'generateError') return;
       const state = store.getState();
-      const boxId = state.getBoxIdForRequest(msg.id);
-      if (boxId) {
-        state.failGeneration(boxId);
+      const targetId = state.getBoxIdForRequest(msg.id);
+      if (targetId) {
+        state.failGeneration(targetId);
         state.clearRequest(msg.id);
       }
 
